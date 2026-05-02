@@ -7,7 +7,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/', (req, res) => {
-  res.json({ status: 'ZapOfertas backend rodando!', version: '1.0.0' });
+  res.json({ status: 'ok', version: '1.0.0' });
 });
 
 const shopeeRoutes = require('./shopee/routes');
