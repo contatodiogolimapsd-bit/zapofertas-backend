@@ -9,12 +9,51 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// Converter link Shopee para afiliado
+// Gerar assinatura correta
+function gerarAssinatura(appId, secretKey) {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const mensagem = appId + timestamp;
+  const assinatura = crypto
+    .createHmac('sha256', secretKey)
+    .update(mensagem)
+    .digest('hex');
+  return { timestamp, assinatura };
+}
+
+// Testar credenciais
+router.post('/testar', async (req, res) => {
+  try {
+    const { app_id, secret_key } = req.body;
+    const { timestamp, assinatura } = gerarAssinatura(app_id, secret_key);
+
+    const response = await axios.post(
+      'https://open-api.affiliate.shopee.com.br/graphql',
+      {
+        query: `{ shopeeOfferV2(sortType: 2, page: 1, limit: 1) { nodes { productLink } } }`
+      },
+      {
+        headers: {
+          'Authorization': `SHA256 Credential=${app_id},Timestamp=${timestamp},Signature=${assinatura}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (response.data.errors) {
+      return res.json({ sucesso: false, erro: response.data.errors[0].message });
+    }
+
+    res.json({ sucesso: true, mensagem: 'Credenciais válidas!' });
+  } catch (err) {
+    res.json({ sucesso: false, erro: err.message });
+  }
+});
+
+// Converter link para afiliado
 router.post('/converter', async (req, res) => {
   try {
     const { link, user_id } = req.body;
 
-    // Buscar credenciais do usuário
     const { data: creds } = await supabase
       .from('credenciais_de_afiliado')
       .select('*')
@@ -23,77 +62,48 @@ router.post('/converter', async (req, res) => {
       .single();
 
     if (!creds) {
-      return res.json({ erro: 'Credenciais Shopee não encontradas' });
+      return res.json({ sucesso: false, erro: 'Credenciais não encontradas' });
     }
 
-    const { affiliate_id, app_id, secret_key } = creds.dados;
+    const { app_id, secret_key } = creds.dados;
+    const { timestamp, assinatura } = gerarAssinatura(app_id, secret_key);
 
-    // Gerar assinatura
-    const timestamp = Math.floor(Date.now() / 1000);
-    const payload = `${app_id}${timestamp}`;
-    const signature = crypto
-      .createHmac('sha256', secret_key)
-      .update(payload)
-      .digest('hex');
-
-    // Chamar API Shopee
     const response = await axios.post(
       'https://open-api.affiliate.shopee.com.br/graphql',
       {
         query: `
           mutation {
             generateShortLink(input: {
-              originUrl: "${link}",
-              subIds: ["${affiliate_id}"]
+              originUrl: "${link}"
             }) {
               shortLink
+              longLink
             }
           }
         `
       },
       {
         headers: {
-          'Authorization': `SHA256 Credential=${app_id},Timestamp=${timestamp},Signature=${signature}`,
+          'Authorization': `SHA256 Credential=${app_id},Timestamp=${timestamp},Signature=${assinatura}`,
           'Content-Type': 'application/json'
         }
       }
     );
 
-    const linkConvertido = response.data?.data?.generateShortLink?.shortLink;
-
-    if (!linkConvertido) {
-      return res.json({ erro: 'Não foi possível converter o link' });
+    if (response.data.errors) {
+      return res.json({ sucesso: false, erro: response.data.errors[0].message });
     }
 
-    res.json({ 
+    const linkConvertido = response.data?.data?.generateShortLink?.shortLink;
+
+    res.json({
       sucesso: true,
       link_original: link,
       link_convertido: linkConvertido
     });
 
   } catch (err) {
-    res.json({ erro: err.message });
-  }
-});
-
-// Testar credenciais
-router.post('/testar', async (req, res) => {
-  try {
-    const { app_id, secret_key } = req.body;
-    const timestamp = Math.floor(Date.now() / 1000);
-    const payload = `${app_id}${timestamp}`;
-    const signature = crypto
-      .createHmac('sha256', secret_key)
-      .update(payload)
-      .digest('hex');
-
-    res.json({ 
-      sucesso: true,
-      mensagem: 'Credenciais válidas',
-      signature_gerada: signature.substring(0, 10) + '...'
-    });
-  } catch (err) {
-    res.json({ erro: err.message });
+    res.json({ sucesso: false, erro: err.message });
   }
 });
 
