@@ -14,6 +14,6 @@ const shopeeRoutes = require('./shopee/routes');
 app.use('/shopee', shopeeRoutes);
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => {
-  console.log(`ZapOfertas backend rodando na porta ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`ZapOfertas rodando na porta ${PORT}`);
 });
