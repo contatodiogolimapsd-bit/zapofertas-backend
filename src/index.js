@@ -13,7 +13,7 @@ app.get('/', (req, res) => {
 const shopeeRoutes = require('./shopee/routes');
 app.use('/shopee', shopeeRoutes);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`ZapOfertas backend rodando na porta ${PORT}`);
 });
