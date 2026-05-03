@@ -3,27 +3,25 @@ const router = express.Router();
 const axios = require('axios');
 const crypto = require('crypto');
 
-function gerarAssinatura(appId, secretKey) {
+function gerarAssinatura(appId, secretKey, payload) {
   const timestamp = Math.floor(Date.now() / 1000);
-  const mensagem = appId + timestamp;
-  const assinatura = crypto
-    .createHmac('sha256', secretKey)
-    .update(mensagem)
-    .digest('hex');
-  return { timestamp, assinatura };
+  const factor = appId + timestamp + payload + secretKey;
+  const signature = crypto.createHash('sha256').update(factor).digest('hex');
+  return { timestamp, signature };
 }
 
 router.post('/testar', async (req, res) => {
   try {
     const { app_id, secret_key } = req.body;
-    const { timestamp, assinatura } = gerarAssinatura(app_id, secret_key);
+    const payload = '{"query":"{ shopeeOfferV2(sortType: 1, page: 1, limit: 1) { nodes { offerName } } }"}';
+    const { timestamp, signature } = gerarAssinatura(app_id, secret_key, payload);
 
     const response = await axios.post(
       'https://open-api.affiliate.shopee.com.br/graphql',
-      { query: `{ shopeeOfferV2(sortType: 2, page: 1, limit: 1) { nodes { productLink } } }` },
+      payload,
       {
         headers: {
-          'Authorization': `SHA256 Credential=${app_id},Timestamp=${timestamp},Signature=${assinatura}`,
+          'Authorization': `SHA256 Credential=${app_id},Timestamp=${timestamp},Signature=${signature}`,
           'Content-Type': 'application/json'
         }
       }
@@ -42,16 +40,15 @@ router.post('/testar', async (req, res) => {
 router.post('/converter', async (req, res) => {
   try {
     const { link, app_id, secret_key } = req.body;
-    const { timestamp, assinatura } = gerarAssinatura(app_id, secret_key);
+    const payload = `{"query":"mutation { generateShortLink(input: { originUrl: \\"${link}\\" }) { shortLink longLink } }"}`;
+    const { timestamp, signature } = gerarAssinatura(app_id, secret_key, payload);
 
     const response = await axios.post(
       'https://open-api.affiliate.shopee.com.br/graphql',
-      {
-        query: `mutation { generateShortLink(input: { originUrl: "${link}" }) { shortLink longLink } }`
-      },
+      payload,
       {
         headers: {
-          'Authorization': `SHA256 Credential=${app_id},Timestamp=${timestamp},Signature=${assinatura}`,
+          'Authorization': `SHA256 Credential=${app_id},Timestamp=${timestamp},Signature=${signature}`,
           'Content-Type': 'application/json'
         }
       }
