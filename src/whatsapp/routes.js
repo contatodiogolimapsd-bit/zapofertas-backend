@@ -15,7 +15,7 @@ const evoHeaders = {
 router.get('/qrcode', async (req, res) => {
   try {
     const { data } = await axios.get(
-      `${EVOLUTION_URL}/instance/connect/${INSTANCE_NAME}`,
+  `${EVOLUTION_URL}/instance/qrcode/${INSTANCE_NAME}?image=true`,
       { headers: evoHeaders }
     );
 
