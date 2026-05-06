@@ -15,52 +15,38 @@ const evoHeaders = {
 router.get('/qrcode', async (req, res) => {
   try {
     const { data } = await axios.get(
-  `${EVOLUTION_URL}/instance/qrcode/${INSTANCE_NAME}?image=true`,
+      `${EVOLUTION_URL}/instance/qrcode/${INSTANCE_NAME}?image=true`,
       { headers: evoHeaders }
     );
-
     const qrcode = data?.base64 || data?.qrcode?.base64 || data?.code || null;
-
-    res.json({ qrcode, status: data?.state || 'aguardando' });
+    res.json({ qrcode, status: 'aguardando' });
   } catch (err) {
-    if (err.response?.status === 404) {
-      try {
-        const { data } = await axios.post(
-          `${EVOLUTION_URL}/instance/create`,
-          { instanceName: INSTANCE_NAME, qrcode: true, integration: 'WHATSAPP-BAILEYS' },
-          { headers: evoHeaders }
-        );
-        res.json({ qrcode: data?.qrcode?.base64 || null, status: 'criando' });
-      } catch (e) {
-        res.status(500).json({ erro: e.response?.data || e.message });
-      }
-    } else {
-      res.status(500).json({ erro: err.response?.data || err.message });
-    }
+    res.status(500).json({ erro: err.response?.data || err.message });
   }
 });
 
 // Criar instância e conectar
 router.post('/conectar', async (req, res) => {
   try {
-    // Tenta deletar instância antiga se existir
+    // Verifica se já existe
+    let qrcode = null;
     try {
-      await axios.delete(
-        `${EVOLUTION_URL}/instance/delete/${INSTANCE_NAME}`,
+      const { data } = await axios.get(
+        `${EVOLUTION_URL}/instance/qrcode/${INSTANCE_NAME}?image=true`,
         { headers: evoHeaders }
       );
+      qrcode = data?.base64 || data?.qrcode?.base64 || data?.code || null;
+      return res.json({ qrcode, status: 'aguardando' });
     } catch (e) {}
 
-    // Cria nova instância
+    // Se não existe, cria
     const { data } = await axios.post(
       `${EVOLUTION_URL}/instance/create`,
       { instanceName: INSTANCE_NAME, qrcode: true, integration: 'WHATSAPP-BAILEYS' },
       { headers: evoHeaders }
     );
-
-    const qrcode = data?.qrcode?.base64 || null;
-
-    res.json({ qrcode, status: data?.instance?.state || 'aguardando' });
+    qrcode = data?.qrcode?.base64 || null;
+    res.json({ qrcode, status: data?.instance?.state || 'criando' });
   } catch (err) {
     res.status(500).json({ erro: err.response?.data || err.message });
   }
@@ -73,9 +59,7 @@ router.get('/status', async (req, res) => {
       `${EVOLUTION_URL}/instance/connectionState/${INSTANCE_NAME}`,
       { headers: evoHeaders }
     );
-
     const conectado = data?.instance?.state === 'open';
-
     res.json({ conectado, estado: data?.instance?.state });
   } catch (err) {
     res.json({ conectado: false, erro: err.response?.data || err.message });
@@ -89,14 +73,12 @@ router.get('/grupos', async (req, res) => {
       `${EVOLUTION_URL}/group/fetchAllGroups/${INSTANCE_NAME}?getParticipants=false`,
       { headers: evoHeaders }
     );
-
     const grupos = (data || []).map(g => ({
       id: g.id,
       nome: g.subject,
       participantes: g.size,
       foto: g.pictureUrl || null
     }));
-
     res.json({ grupos });
   } catch (err) {
     res.status(500).json({ erro: err.response?.data || err.message });
