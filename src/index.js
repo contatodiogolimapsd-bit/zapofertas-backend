@@ -13,6 +13,9 @@ app.get('/', (req, res) => {
 const shopeeRoutes = require('./shopee/routes');
 app.use('/shopee', shopeeRoutes);
 
+const whatsappRoutes = require('./whatsapp/routes');
+app.use('/whatsapp', whatsappRoutes);
+
 const PORT = parseInt(process.env.PORT) || 8080;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`ZapOfertas rodando na porta ${PORT}`);
