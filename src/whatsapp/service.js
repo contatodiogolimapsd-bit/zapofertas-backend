@@ -44,6 +44,11 @@ class WhatsAppService extends EventEmitter {
         browser: ['ZapOfertas', 'Chrome', '120.0.0'],
         syncFullHistory: false,
         markOnlineOnConnect: false,
+        shouldIgnoreJid: () => false,
+        retryRequestDelayMs: 250,
+        maxMsgRetryCount: 1,
+        connectTimeoutMs: 20000,
+        keepAliveIntervalMs: 10000,
       });
 
       this.sock.ev.on('creds.update', saveCreds);
