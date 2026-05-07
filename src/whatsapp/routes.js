@@ -97,5 +97,22 @@ router.delete('/desconectar', async (req, res) => {
     res.status(500).json({ erro: err.message });
   }
 });
+// ...todas as rotas anteriores...
 
+// Debug participantes de um grupo
+router.get('/debug-grupo/:groupId', async (req, res) => {
+  try {
+    const groupData = await whatsapp.sock.groupFetchAllParticipating();
+    const grupo = Object.values(groupData).find(g => g.id === req.params.groupId + '@g.us');
+    res.json({ 
+      id: grupo?.id,
+      nome: grupo?.subject,
+      participantes: grupo?.participants?.slice(0, 5)
+    });
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+module.exports = router;
 module.exports = router;
