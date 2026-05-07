@@ -16,7 +16,7 @@ class WhatsAppService extends EventEmitter {
     super();
     this.sock = null;
     this.qrCode = null;
-    this.status = 'disconnected'; // disconnected | connecting | qr_ready | connected
+    this.status = 'disconnected';
     this.groups = [];
     this.authDir = process.env.WA_AUTH_DIR || './wa_auth';
     this.retryCount = 0;
@@ -24,7 +24,6 @@ class WhatsAppService extends EventEmitter {
   }
 
   async connect() {
-    // Evita múltiplas conexões simultâneas
     if (this.status === 'connecting' || this.status === 'qr_ready') return;
 
     try {
@@ -91,7 +90,6 @@ class WhatsAppService extends EventEmitter {
         }
       });
 
-      // Escuta mensagens de grupos (para o monitor de ofertas futuro)
       this.sock.ev.on('messages.upsert', ({ messages, type }) => {
         if (type !== 'notify') return;
         for (const msg of messages) {
@@ -110,13 +108,27 @@ class WhatsAppService extends EventEmitter {
   async loadGroups() {
     try {
       if (!this.sock) return [];
+
       const groupData = await this.sock.groupFetchAllParticipating();
-      this.groups = Object.values(groupData).map((g) => ({
-        id: g.id,
-        nome: g.subject,
-        participantes: g.participants?.length || 0,
-        descricao: g.desc || '',
-      }));
+      const myId = this.sock.user?.id?.replace(/:.*@/, '@');
+
+      this.groups = Object.values(groupData).map((g) => {
+        const participants = g.participants || [];
+        const me = participants.find((p) => {
+          const pid = p.id?.replace(/:.*@/, '@');
+          return pid === myId;
+        });
+        const isAdmin = me?.admin === 'admin' || me?.admin === 'superadmin';
+
+        return {
+          id: g.id,
+          nome: g.subject,
+          participantes: participants.length,
+          descricao: g.desc || '',
+          isAdmin,
+        };
+      });
+
       console.log(`[WhatsApp] ${this.groups.length} grupos carregados`);
       return this.groups;
     } catch (err) {
@@ -174,6 +186,5 @@ class WhatsAppService extends EventEmitter {
   }
 }
 
-// Singleton — uma instância compartilhada em todo o backend
 const whatsappService = new WhatsAppService();
 module.exports = whatsappService;
