@@ -117,13 +117,14 @@ class WhatsAppService extends EventEmitter {
       const groupData = await this.sock.groupFetchAllParticipating();
       const rawId = this.sock.user?.id || '';
       const myId = rawId.split('@')[0].split(':')[0];
-      console.log('[WhatsApp] Meu ID:', myId);
+      const myIdAlt = myId.slice(0, 4) + '9' + myId.slice(4);
+      console.log('[WhatsApp] Meu ID:', myId, '| Alt:', myIdAlt);
 
       this.groups = Object.values(groupData).map((g) => {
         const participants = g.participants || [];
         const me = participants.find((p) => {
           const pid = (p.id || '').split('@')[0].split(':')[0];
-          return pid === myId;
+          return pid === myId || pid === myIdAlt;
         });
         const isAdmin = me?.admin === 'admin' || me?.admin === 'superadmin';
 
