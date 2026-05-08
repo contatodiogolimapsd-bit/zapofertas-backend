@@ -116,27 +116,35 @@ class WhatsAppService extends EventEmitter {
 
       const groupData = await this.sock.groupFetchAllParticipating();
       const rawId = this.sock.user?.id || '';
-      const myId = rawId.split('@')[0].split(':')[0];
-      const myIdAlt = myId.slice(0, 4) + '9' + myId.slice(4);
-      console.log('[WhatsApp] Meu ID:', myId, '| Alt:', myIdAlt);
+      const myNumber = rawId.split('@')[0].split(':')[0];
+      const myNumberAlt = myNumber.slice(0, 4) + '9' + myNumber.slice(4);
+      console.log('[WhatsApp] Meu número:', myNumber, '| Alt:', myNumberAlt);
 
-      this.groups = Object.values(groupData).map((g) => {
-        const participants = g.participants || [];
-        const me = participants.find((p) => {
-          const pid = (p.id || '').split('@')[0].split(':')[0];
-          return pid === myId || pid === myIdAlt;
-        });
-        const isAdmin = me?.admin === 'admin' || me?.admin === 'superadmin';
+      const groups = [];
 
-        return {
+      for (const g of Object.values(groupData)) {
+        let isAdmin = false;
+        try {
+          const meta = await this.sock.groupMetadata(g.id);
+          const me = meta.participants?.find((p) => {
+            const pid = (p.id || '').split('@')[0].split(':')[0];
+            return pid === myNumber || pid === myNumberAlt;
+          });
+          isAdmin = me?.admin === 'admin' || me?.admin === 'superadmin';
+        } catch (e) {
+          // ignora erro individual
+        }
+
+        groups.push({
           id: g.id,
           nome: g.subject,
-          participantes: participants.length,
+          participantes: g.participants?.length || 0,
           descricao: g.desc || '',
           isAdmin,
-        };
-      });
+        });
+      }
 
+      this.groups = groups;
       console.log(`[WhatsApp] ${this.groups.length} grupos carregados`);
       return this.groups;
     } catch (err) {
