@@ -118,12 +118,18 @@ class WhatsAppService extends EventEmitter {
 
       // Pega o JID completo do usuário (ex: "554484010436:12@s.whatsapp.net")
       const myJid = this.sock.user?.id || '';
+      // Pega o LID do usuário se disponível (ex: "236085779153148@lid")
+      const myLid = this.sock.user?.lid || '';
+
       // Extrai só a parte antes do @ para comparar (ex: "554484010436:12")
       const myJidLocal = myJid.split('@')[0];
       // Sem o device (:XX) para comparar com participantes sem device
       const myJidBase = myJidLocal.split(':')[0];
       // Número puro sem não-dígitos
       const myNumber = myJidBase.replace(/\D/g, '');
+
+      // Extrair a parte do LID antes do @
+      const myLidLocal = myLid.split('@')[0];
 
       // Variantes de número (com e sem dígito 9 do Brasil)
       const myVariants = new Set([myNumber]);
@@ -134,7 +140,7 @@ class WhatsAppService extends EventEmitter {
       }
       const mySuffix = myNumber.slice(-8);
 
-      console.log('[WhatsApp] myJid:', myJid, '| myJidBase:', myJidBase);
+      console.log('[WhatsApp] myJid:', myJid, '| myLid:', myLid, '| myJidBase:', myJidBase);
 
       const groups = [];
 
@@ -144,18 +150,28 @@ class WhatsAppService extends EventEmitter {
         const participants = g.participants || [];
         const me = participants.find((p) => {
           const pid = p.id || '';
-          const pidLocal = pid.split('@')[0];
-          const pidBase = pidLocal.split(':')[0];
-          const pidNumber = pidBase.replace(/\D/g, '');
 
-          // 1. Comparação direta do JID base (funciona para @s.whatsapp.net)
-          if (pidBase === myJidBase) return true;
+          // 1. Se o participante tem @lid, comparar com myLidLocal
+          if (pid.includes('@lid')) {
+            const pidLocal = pid.split('@')[0];
+            if (pidLocal === myLidLocal) return true;
+          }
 
-          // 2. Comparação por número (com variantes de dígito 9)
-          if (myVariants.has(pidNumber)) return true;
+          // 2. Se o participante tem @s.whatsapp.net, fazer comparações normais
+          if (pid.includes('@s.whatsapp.net') || pid.includes('@whatsapp.net')) {
+            const pidLocal = pid.split('@')[0];
+            const pidBase = pidLocal.split(':')[0];
+            const pidNumber = pidBase.replace(/\D/g, '');
 
-          // 3. Comparação por sufixo dos últimos 8 dígitos
-          if (pidNumber.length >= 8 && pidNumber.endsWith(mySuffix)) return true;
+            // 2a. Comparação direta do JID base
+            if (pidBase === myJidBase) return true;
+
+            // 2b. Comparação por número (com variantes de dígito 9)
+            if (myVariants.has(pidNumber)) return true;
+
+            // 2c. Comparação por sufixo dos últimos 8 dígitos
+            if (pidNumber.length >= 8 && pidNumber.endsWith(mySuffix)) return true;
+          }
 
           return false;
         });
@@ -180,6 +196,7 @@ class WhatsAppService extends EventEmitter {
       return [];
     }
   }
+
   async sendText(groupId, text) {
     if (!this.sock || this.status !== 'connected') {
       throw new Error('WhatsApp não está conectado');
