@@ -1,4 +1,4 @@
-const express = require('express');
+Page_DownPage_Downconst express = require('express');
 const router = express.Router();
 const whatsapp = require('./service');
 
@@ -68,28 +68,42 @@ router.get('/status', (req, res) => {
 
 // Listar grupos
 router.get('/grupos', async (req, res) => {
-  try {
-    const s = whatsapp.getStatus();
+    try {
+          const s = whatsapp.getStatus();
+          if (!s.conectado) {
+                  return res.status(400).json({ erro: 'WhatsApp não está conectado' });
+          }
 
-    if (!s.conectado) {
-      return res.status(400).json({ erro: 'WhatsApp não está conectado' });
+          const grupos = await whatsapp.loadGroups();
+
+          // Fetch complete metadata for each group to get participant role information
+          const gruposComRole = await Promise.all(
+                  grupos.map(async (grupo) => {
+                            try {
+                                        const metadata = await whatsapp.getGroupMetadata(grupo.id);
+                                        return {
+                                                      ...grupo,
+                                                      participants: metadata.participants.map(p => ({
+                                                                      ...p,
+                                                                      role: p.role || 'member'
+                                                      })) || []
+                                        };
+                            } catch (err) {
+                                        // If metadata fetch fails, return group with empty participants
+                                        console.error(`Erro ao buscar metadata do grupo ${grupo.id}:`, err.message);
+                                        return {
+                                                      ...grupo,
+                                                      participants: []
+                                        };
+                            }
+                  })
+                );
+
+          res.json(gruposComRole);
+    } catch (err) {
+          res.status(500).json({ erro: err.message });
     }
-
-    const grupos = await whatsapp.loadGroups();
-
-          // Enrich groups with participant role information
-          const gruposComRole = grupos.map(grupo => ({
-                    ...grupo,
-                    participants: grupo.participants?.map(p => ({
-                                ...p,
-                                role: p.role || 'member'
-                    })) || []
-          }));
-res.json( gruposComRole );  } catch (err) {
-    res.status(500).json({ erro: err.message });
-  }
 });
-
 // Desconectar
 router.delete('/desconectar', async (req, res) => {
   try {
