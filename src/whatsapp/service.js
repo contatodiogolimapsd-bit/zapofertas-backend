@@ -116,9 +116,24 @@ class WhatsAppService extends EventEmitter {
 
       const groupData = await this.sock.groupFetchAllParticipating();
       const rawId = this.sock.user?.id || '';
-      const myNumber = rawId.split('@')[0].split(':')[0];
-      const myNumberAlt = myNumber.slice(0, 4) + '9' + myNumber.slice(4);
-      console.log('[WhatsApp] Meu número:', myNumber, '| Alt:', myNumberAlt);
+
+      // Extrai o número puro (remove sufixo @..., device :XX, etc.)
+      const myNumber = rawId.split('@')[0].split(':')[0].replace(/\D/g, '');
+
+      // Gera variantes: com e sem o dígito 9 após DDI+DDD (Brasil)
+      // Ex: 554484010436 <-> 5544984010436
+      const myVariants = new Set([myNumber]);
+      if (myNumber.startsWith('55') && myNumber.length === 12) {
+        // Sem o 9: adiciona versão com 9
+        myVariants.add(myNumber.slice(0, 4) + '9' + myNumber.slice(4));
+      } else if (myNumber.startsWith('55') && myNumber.length === 13) {
+        // Com o 9: adiciona versão sem 9
+        myVariants.add(myNumber.slice(0, 4) + myNumber.slice(5));
+      }
+      // Sufixo dos 8 últimos dígitos para comparação flexível
+      const mySuffix = myNumber.slice(-8);
+
+      console.log('[WhatsApp] Meu número:', myNumber, '| Variantes:', [...myVariants], '| Sufixo:', mySuffix);
 
       const groups = [];
 
@@ -127,12 +142,13 @@ class WhatsAppService extends EventEmitter {
         try {
           const meta = await this.sock.groupMetadata(g.id);
           const me = meta.participants?.find((p) => {
-            const pid = (p.id || '').split('@')[0].split(':')[0];
-            return pid === myNumber || pid === myNumberAlt;
+            const pid = (p.id || '').split('@')[0].split(':')[0].replace(/\D/g, '');
+            // Compara pelas variantes conhecidas OU pelo sufixo dos últimos 8 dígitos
+            return myVariants.has(pid) || pid.endsWith(mySuffix);
           });
           isAdmin = me?.admin === 'admin' || me?.admin === 'superadmin';
         } catch (e) {
-          // ignora erro individual
+          console.warn(`[WhatsApp] Erro ao buscar metadata do grupo ${g.id}:`, e?.message);
         }
 
         groups.push({
@@ -145,7 +161,8 @@ class WhatsAppService extends EventEmitter {
       }
 
       this.groups = groups;
-      console.log(`[WhatsApp] ${this.groups.length} grupos carregados`);
+      const adminCount = groups.filter((g) => g.isAdmin).length;
+      console.log(`[WhatsApp] ${this.groups.length} grupos carregados (${adminCount} como admin)`);
       return this.groups;
     } catch (err) {
       console.error('[WhatsApp] Erro ao carregar grupos:', err);
