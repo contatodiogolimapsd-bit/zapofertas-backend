@@ -122,4 +122,22 @@ router.get('/debug-admin', async (req, res) => {
   }
 });
 
+// Retornar o ID do usuário conectado em ambos os formatos (@s.whatsapp.net e @lid)
+router.get('/me', async (req, res) => {
+    try {
+          const meuId = whatsapp.sock?.user?.id;
+
+          if (!meuId) {
+                  return res.status(400).json({ erro: 'WhatsApp não conectado' });
+          }
+
+          res.json({
+                  id: meuId,
+                  lid: meuId.replace('@s.whatsapp.net', '@lid')
+          });
+    } catch (err) {
+          res.status(500).json({ erro: err.message });
+    }
+});
+
 module.exports = router;
