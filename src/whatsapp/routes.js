@@ -22,20 +22,16 @@ router.post('/conectar', async (req, res) => {
   try {
     const s = whatsapp.getStatus();
 
-    // Já conectado
     if (s.status === 'connected') {
       return res.json({ qrcode: null, status: 'connected', conectado: true });
     }
 
-    // Já tem QR gerado — retorna ele
     if (s.status === 'qr_ready' && s.qrCode) {
       return res.json({ qrcode: s.qrCode, status: 'qr_ready', conectado: false });
     }
 
-    // Inicia conexão (assíncrono — não bloqueia)
     whatsapp.connect().catch(console.error);
 
-    // Aguarda até 8 segundos pelo QR Code
     const qrCode = await new Promise((resolve) => {
       const timeout = setTimeout(() => resolve(null), 8000);
 
@@ -44,7 +40,6 @@ router.post('/conectar', async (req, res) => {
         resolve(qrCode);
       });
 
-      // Se já estava gerando e emitiu antes de chegarmos aqui
       if (whatsapp.qrCode) {
         clearTimeout(timeout);
         resolve(whatsapp.qrCode);
@@ -80,7 +75,6 @@ router.get('/grupos', async (req, res) => {
       return res.status(400).json({ erro: 'WhatsApp não está conectado' });
     }
 
-    // Força refresh
     const grupos = await whatsapp.loadGroups();
     res.json({ grupos });
   } catch (err) {
@@ -97,22 +91,35 @@ router.delete('/desconectar', async (req, res) => {
     res.status(500).json({ erro: err.message });
   }
 });
-// ...todas as rotas anteriores...
 
-// Debug participantes de um grupo
-router.get('/debug-grupo/:groupId', async (req, res) => {
+// Debug: ver meu ID e participantes brutos de um grupo para diagnóstico de isAdmin
+router.get('/debug-admin', async (req, res) => {
   try {
+    if (!whatsapp.sock) return res.status(400).json({ erro: 'sock não disponível' });
+
+    const rawId = whatsapp.sock.user?.id || '';
+    const myNumber = rawId.split('@')[0].split(':')[0].replace(/\D/g, '');
+
     const groupData = await whatsapp.sock.groupFetchAllParticipating();
-    const grupo = Object.values(groupData).find(g => g.id === req.params.groupId + '@g.us');
-    res.json({ 
-      id: grupo?.id,
-      nome: grupo?.subject,
-      participantes: grupo?.participants?.slice(0, 5)
-    });
+    const grupos = Object.values(groupData).slice(0, 5);
+
+    const resultado = await Promise.all(grupos.map(async (g) => {
+      try {
+        const meta = await whatsapp.sock.groupMetadata(g.id);
+        const participantes = (meta.participants || []).slice(0, 10).map(p => ({
+          id: p.id,
+          admin: p.admin,
+        }));
+        return { id: g.id, nome: g.subject, participantes };
+      } catch (e) {
+        return { id: g.id, nome: g.subject, erro: e.message };
+      }
+    }));
+
+    res.json({ meuIdRaw: rawId, meuNumero: myNumber, grupos: resultado });
   } catch (err) {
     res.status(500).json({ erro: err.message });
   }
 });
 
-module.exports = router;
 module.exports = router;
