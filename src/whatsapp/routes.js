@@ -76,8 +76,16 @@ router.get('/grupos', async (req, res) => {
     }
 
     const grupos = await whatsapp.loadGroups();
-    res.json({ grupos });
-  } catch (err) {
+
+          // Enrich groups with participant role information
+          const gruposComRole = grupos.map(grupo => ({
+                    ...grupo,
+                    participants: grupo.participants?.map(p => ({
+                                ...p,
+                                role: p.role || 'member'
+                    })) || []
+          }));
+res.json( gruposComRole );  } catch (err) {
     res.status(500).json({ erro: err.message });
   }
 });
