@@ -1,4 +1,4 @@
-hPage_DownPage_Downconst express = require('express');
+hhPage_DownPage_Downconst express = require('express');
 const router = express.Router();
 const whatsapp = require('./service');
 
@@ -80,7 +80,7 @@ router.get('/grupos', async (req, res) => {
           const gruposComRole = await Promise.all(
                   grupos.map(async (grupo) => {
                             try {
-                                        const metadata = await whatsapp.getGroupMetadata(group.id);
+                                        const metadata = await whatsapp.getGroupMetadata(grupo.id);
                                         return {
                                                       ...grupo,
                                                       participants: metadata.participants.map(p => ({
@@ -90,7 +90,7 @@ router.get('/grupos', async (req, res) => {
                                         };
                             } catch (err) {
                                         // If metadata fetch fails, return group with empty participants
-                                        console.error(`Erro ao buscar metadata do grupo ${group.id}:`, err.message);
+                                        console.error(`Erro ao buscar metadata do grupo ${grupo.id}:`, err.message);
                                         return {
                                                       ...grupo,
                                                       participants: []
