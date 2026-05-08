@@ -115,12 +115,17 @@ class WhatsAppService extends EventEmitter {
       if (!this.sock) return [];
 
       const groupData = await this.sock.groupFetchAllParticipating();
-      const rawId = this.sock.user?.id || '';
 
-      // Extrai o número puro (remove sufixo @..., device :XX e não-dígitos)
-      const myNumber = rawId.split('@')[0].split(':')[0].replace(/\D/g, '');
+      // Pega o JID completo do usuário (ex: "554484010436:12@s.whatsapp.net")
+      const myJid = this.sock.user?.id || '';
+      // Extrai só a parte antes do @ para comparar (ex: "554484010436:12")
+      const myJidLocal = myJid.split('@')[0];
+      // Sem o device (:XX) para comparar com participantes sem device
+      const myJidBase = myJidLocal.split(':')[0];
+      // Número puro sem não-dígitos
+      const myNumber = myJidBase.replace(/\D/g, '');
 
-      // Gera variantes: com e sem o dígito 9 após DDI+DDD (padrão Brasil)
+      // Variantes de número (com e sem dígito 9 do Brasil)
       const myVariants = new Set([myNumber]);
       if (myNumber.startsWith('55') && myNumber.length === 12) {
         myVariants.add(myNumber.slice(0, 4) + '9' + myNumber.slice(4));
@@ -129,37 +134,38 @@ class WhatsAppService extends EventEmitter {
       }
       const mySuffix = myNumber.slice(-8);
 
-      console.log('[WhatsApp] rawId:', rawId);
-      console.log('[WhatsApp] myNumber:', myNumber, '| variantes:', [...myVariants]);
+      console.log('[WhatsApp] myJid:', myJid, '| myJidBase:', myJidBase);
 
       const groups = [];
 
       for (const g of Object.values(groupData)) {
         let isAdmin = false;
-        try {
-          const meta = await this.sock.groupMetadata(g.id);
-          const participants = meta.participants || [];
 
-          // Log dos primeiros 3 participantes para diagnóstico
-          if (groups.length === 0) {
-            console.log('[WhatsApp] Amostra participantes grupo', g.subject, ':',
-              participants.slice(0, 3).map(p => JSON.stringify({ id: p.id, admin: p.admin })));
-          }
+        const participants = g.participants || [];
+        const me = participants.find((p) => {
+          const pid = p.id || '';
+          const pidLocal = pid.split('@')[0];
+          const pidBase = pidLocal.split(':')[0];
+          const pidNumber = pidBase.replace(/\D/g, '');
 
-          const me = participants.find((p) => {
-            // Remove domínio (@s.whatsapp.net, @lid, etc.) e device (:XX)
-            const pid = (p.id || '').split('@')[0].split(':')[0].replace(/\D/g, '');
-            return myVariants.has(pid) || pid.endsWith(mySuffix);
-          });
-          isAdmin = me?.admin === 'admin' || me?.admin === 'superadmin';
-        } catch (e) {
-          console.warn(`[WhatsApp] Erro metadata ${g.id}:`, e?.message);
-        }
+          // 1. Comparação direta do JID base (funciona para @s.whatsapp.net)
+          if (pidBase === myJidBase) return true;
+
+          // 2. Comparação por número (com variantes de dígito 9)
+          if (myVariants.has(pidNumber)) return true;
+
+          // 3. Comparação por sufixo dos últimos 8 dígitos
+          if (pidNumber.length >= 8 && pidNumber.endsWith(mySuffix)) return true;
+
+          return false;
+        });
+
+        isAdmin = me?.admin === 'admin' || me?.admin === 'superadmin';
 
         groups.push({
           id: g.id,
           nome: g.subject,
-          participantes: g.participants?.length || 0,
+          participantes: participants.length,
           descricao: g.desc || '',
           isAdmin,
         });
@@ -167,7 +173,7 @@ class WhatsAppService extends EventEmitter {
 
       this.groups = groups;
       const adminCount = groups.filter((g) => g.isAdmin).length;
-      console.log(`[WhatsApp] ${this.groups.length} grupos carregados (${adminCount} como admin)`);
+      console.log(`[WhatsApp] ${groups.length} grupos carregados (${adminCount} como admin)`);
       return this.groups;
     } catch (err) {
       console.error('[WhatsApp] Erro ao carregar grupos:', err);
