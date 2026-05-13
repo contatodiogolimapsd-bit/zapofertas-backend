@@ -58,7 +58,10 @@ class WhatsAppService extends EventEmitter {
         keepAliveIntervalMs: 10000,
       });
 
-      this.sock.ev.on('creds.update', saveCreds);
+      this.sock.ev.on('creds.update', (...args) => {
+        console.log('[WhatsApp] 🔐 Credenciais atualizadas, salvando...');
+        saveCreds();
+      });
 
       this.sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
