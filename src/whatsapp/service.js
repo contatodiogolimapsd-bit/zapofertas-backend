@@ -75,18 +75,27 @@ class WhatsAppService extends EventEmitter {
         }
 
         if (connection === 'open') {
-          // Aguardar sock.user estar disponível
-          await new Promise(r => setTimeout(r, 1000));
-          if (!this.sock?.user) {
-            console.log('[WhatsApp] Conexão aberta mas user não disponível ainda');
+          // Aguardar sock.user estar disponível (até 5 segundos)
+          let userReady = false;
+          for (let i = 0; i < 50; i++) {
+            await new Promise(r => setTimeout(r, 100));
+            if (this.sock?.user) {
+              userReady = true;
+              break;
+            }
+          }
+
+          if (!userReady) {
+            console.log('[WhatsApp] ❌ Timeout: user não ficou disponível');
             return;
           }
+
           this.status = 'connected';
           this.qrCode = null;
           this.retryCount = 0;
           this.emit('status', { status: 'connected' });
-          console.log('[WhatsApp] Conectado com sucesso! Usuário:', this.sock.user.id);
-          setTimeout(() => this.loadGroups(), 3000);
+          console.log('[WhatsApp] ✅ Conectado com sucesso! Usuário:', this.sock.user.id);
+          setTimeout(() => this.loadGroups(), 2000);
         }
 
         if (connection === 'close') {
