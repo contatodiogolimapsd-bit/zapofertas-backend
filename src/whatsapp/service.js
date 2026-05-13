@@ -20,13 +20,20 @@ class WhatsAppService extends EventEmitter {
     this.groups = [];
     this.authDir = process.env.WA_AUTH_DIR || './wa_auth';
     this.retryCount = 0;
-    this.maxRetries = 5;
+    this.maxRetries = 50;
   }
 
   async connect() {
-    if (this.status === 'connecting' || this.status === 'qr_ready') return;
+    if (this.status === 'connecting') return;
 
     try {
+      // Destruir socket antigo se existir
+      if (this.sock) {
+        this.sock.ev.removeAllListeners();
+        try { this.sock.ws?.close(); } catch {}
+        this.sock = null;
+      }
+
       this.status = 'connecting';
       this.emit('status', { status: 'connecting' });
 
@@ -68,11 +75,17 @@ class WhatsAppService extends EventEmitter {
         }
 
         if (connection === 'open') {
+          // Aguardar sock.user estar disponível
+          await new Promise(r => setTimeout(r, 1000));
+          if (!this.sock?.user) {
+            console.log('[WhatsApp] Conexão aberta mas user não disponível ainda');
+            return;
+          }
           this.status = 'connected';
           this.qrCode = null;
           this.retryCount = 0;
           this.emit('status', { status: 'connected' });
-          console.log('[WhatsApp] Conectado!');
+          console.log('[WhatsApp] Conectado com sucesso! Usuário:', this.sock.user.id);
           setTimeout(() => this.loadGroups(), 3000);
         }
 
@@ -108,6 +121,11 @@ class WhatsAppService extends EventEmitter {
       console.error('[WhatsApp] Erro ao conectar:', err);
       this.status = 'error';
     }
+  }
+
+  async getGroupMetadata(groupId) {
+    if (!this.sock) throw new Error('WhatsApp não conectado');
+    return this.sock.groupMetadata(groupId);
   }
 
   async loadGroups() {
@@ -236,9 +254,10 @@ class WhatsAppService extends EventEmitter {
   }
 
   getStatus() {
+    const isReallyConnected = this.status === 'connected' && this.sock && this.sock.user;
     return {
       status: this.status,
-      conectado: this.status === 'connected',
+      conectado: isReallyConnected,
       qrCode: this.qrCode,
       grupos: this.groups,
       totalGrupos: this.groups.length,

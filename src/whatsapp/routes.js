@@ -80,16 +80,15 @@ router.get('/grupos', async (req, res) => {
           const gruposComRole = await Promise.all(
                   grupos.map(async (grupo) => {
                             try {
-                                        const metadata = await whatsapp.getGroupMetadata(grupo.id);
+                                        const metadata = await whatsapp.sock.groupMetadata(grupo.id);
                                         return {
                                                       ...grupo,
-                                                      participants: metadata.participants.map(p => ({
+                                                      participants: (metadata.participants || []).map(p => ({
                                                                       ...p,
                                                                       role: p.role || 'member'
-                                                      })) || []
+                                                      }))
                                         };
                             } catch (err) {
-                                        // If metadata fetch fails, return group with empty participants
                                         console.error(`Erro ao buscar metadata do grupo ${grupo.id}:`, err.message);
                                         return {
                                                       ...grupo,
