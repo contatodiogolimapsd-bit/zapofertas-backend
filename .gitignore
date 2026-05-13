@@ -1,0 +1,8 @@
+node_modules/
+.env
+*.log
+wa_auth/
+wa_creds_encrypted.json
+check-supabase.js
+setup-supabase.js
+.DS_Store

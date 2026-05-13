@@ -19,15 +19,21 @@ app.use('/whatsapp', whatsappRoutes);
 const queueRoutes = require('./queue/routes');
 app.use('/queue', queueRoutes);
 
+// Webhook handler for Evolution API
+const webhookModule = require('./whatsapp/webhook');
+const { setEvolutionClient } = webhookModule;
+app.post('/webhook/evolution', webhookModule);
+
 const PORT = parseInt(process.env.PORT) || 8080;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`ZapOfertas rodando na porta ${PORT}`);
 
-             // Conecta WhatsApp automaticamente ao iniciar
-             const whatsapp = require('./whatsapp/service');
-    whatsapp.connect().catch(console.error);
+    // Evolution API auto-connects via whatsapp/routes.js
+    // Inject evolution client into webhook handler
+    const whatsappRoutes = require('./whatsapp/routes');
+    setEvolutionClient(whatsappRoutes.evolution);
 
-             // Inicializa o handler de automacoes (listener de mensagens)
-             const handler = require('./automacao-handler');
+    // Inicializa o handler de automacoes (listener de mensagens)
+    const handler = require('./automacao-handler');
     handler.inicializar();
 });
